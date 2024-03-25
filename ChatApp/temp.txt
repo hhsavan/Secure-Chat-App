@@ -1,0 +1,203 @@
+using System.Diagnostics;
+using System.Net.Sockets;
+using System.Net;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using System.Collections.ObjectModel;
+using Newtonsoft.Json;
+
+//TODO
+// Diffie-Helman key exchange yapılacak.
+// Ecc algoritması implmenet edilecek
+// gönderilen mesaj ecc ile encrypt ve decrypt edilecek
+
+
+
+namespace ChatApp
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+
+        private string parnerIP = "10.1.228.74";
+        private long serverPublicDHKey = 245683187;
+        private long privateDHKey = 0;
+        private long diffiHelmanExchangeKey = 0;
+
+        private long privateKey;
+        private long publicKey;     // diffie helman ile oluşturulup, decrypt edilip karşı tarafa gönderilecek
+
+        private long partnerPublicKey = 0;
+
+        //private long serverPublicDHKey2 = 245683189;
+        //private long serverPublicDHKey3 = 245683199;
+
+        private bool initializeState = true;
+        private bool keyExchange = false;
+        public ObservableCollection<Message> Messages { get; set; }
+
+        private struct MessageStruct
+        {
+            public ObservableCollection<Message> Messages { get; set; }
+            public bool initializing = false;
+
+
+            MessageStruct(Message message)
+            {
+
+            }
+        }
+
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            Messages = new ObservableCollection<Message>();
+            lstMessages.ItemsSource = Messages;
+            Task.Run(() => SendMessage());  //initialize stetinde bir kerelik çağırlır
+            Task.Run(() => ListenForMessages());
+        }
+
+        //TODO Gönderilen mesajın sol altında karşıya ulaşıp ulaşmadığını belirten ufak bir yazı olacak
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        public void btnSend_Click(object sender, RoutedEventArgs e)
+        {
+            string messageContent = txtMessage.Text;
+            if (!string.IsNullOrEmpty(messageContent))
+            {
+                //burda yeni bir thread ile mesajı gönderecek
+
+                Task.Run(() => SendMessage(messageContent));
+
+                Messages.Add(new Message { Sender = "You", Content = messageContent });
+                txtMessage.Clear();
+            }
+        }
+        
+        public class Message
+    {
+        public string Sender { get; set; }
+        public string Content { get; set; }
+    }
+
+        /// <summary>
+        /// mesaj gönderir
+        /// </summary>
+        /// <param name="message"></param>
+        private async Task SendMessage(string message="")
+    {
+        try
+        {
+            TcpClient client = new TcpClient(parnerIP, 8080);
+            NetworkStream stream = client.GetStream();
+                byte[] data;
+                MessageStruct messageStruct = new MessageStruct();
+
+                while(initializeState)
+                {
+
+                    string DiffieHelmanKey = (serverPublicDHKey * privateDHKey).ToString();
+                    //string jsonMessage = JsonConvert.SerializeObject(messageStruct);
+                    data = Encoding.ASCII.GetBytes(DiffieHelmanKey);        //DiffieHelmanKey çarpımım karşı tareafa gönderildi
+                    stream.Write(data, 0, data.Length);
+                    Debug.WriteLine("SendMessage() : initializeState: DiffieHelmanKey - " + DiffieHelmanKey);
+
+                }
+                while (keyExchange)
+                {
+                    //keyExchange = false;
+                    data = Encoding.ASCII.GetBytes(publicKey.ToString());        //DiffieHelmanKey çarpımım karşı tareafa gönderildi
+                    stream.Write(data, 0, data.Length);
+                    Debug.WriteLine("SendMessage() : KeyExchange: publicKey - " + publicKey);
+
+                }
+                
+                data = Encoding.ASCII.GetBytes(message);
+                stream.Write(data, 0, data.Length);
+
+            // İstemciyi kapat
+            client.Close();
+        }
+        catch (Exception ex)
+        {
+            // Hata yönetimi burada yapılabilir
+            MessageBox.Show($"Hata oluştu: {ex.Message}", "Hata", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+        private async Task ListenForMessages()
+        {
+            while (true)
+            {
+                try
+                {
+                    TcpListener server = new TcpListener(IPAddress.Any, 8080);
+                    server.Start();
+
+                    TcpClient client = await server.AcceptTcpClientAsync();
+                    NetworkStream stream = client.GetStream();
+
+                    byte[] data = new byte[256];
+                    int bytesRead = await stream.ReadAsync(data, 0, data.Length);
+                    string message = Encoding.ASCII.GetString(data, 0, bytesRead);
+                    Debug.WriteLine($"Gelen Veri: {message}");
+
+                    server.Stop();
+
+                    if (initializeState) //gelen mesaj diffiehelmanKey
+                    {
+                        initializeState = false;
+                        diffiHelmanExchangeKey = serverPublicDHKey * privateDHKey * Convert.ToInt64(message);       // diffiHelmanExchangeKey oluşturuldu. Initializing bitti. Şimdi bununla public keyler gönderilecek
+                        keyExchange = true;
+                        Debug.WriteLine("ListenForMessages() : initializeState: diffiHelmanExchangeKey - " + diffiHelmanExchangeKey);
+
+                    }
+                    else if (keyExchange)   //gelen karşı tarafın public Key'i
+                    {
+                        keyExchange = false;
+                        partnerPublicKey = Convert.ToInt64(message);
+                        Debug.WriteLine("ListenForMessages() : keyExchange: partnerPublicKey - " + partnerPublicKey);
+                    }
+                    // Gelen mesajı UI thread'ine eklemek için Dispatcher'ı kullan
+                    else Dispatcher.Invoke(() => Messages.Add(new Message { Sender = "Partner", Content = message }));
+                }
+                catch (Exception ec)
+                {
+                    Debug.WriteLine($"Hata oluştu: {ec.Message}");
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Diffie Helman Key exchange yapılır. karşı taraftan gelen key ile server ve kendi number'ını çarpar.
+        /// </summary>
+        private long DiffieHelman_KeyExchange(long partnerprivateDHKey)
+        {
+            privateDHKey = GenerateRandomKey();
+
+            return partnerprivateDHKey * privateDHKey * serverPublicDHKey;
+        }
+
+        private long GenerateRandomKey(int size = 13)
+        {
+            var rnd = new Random();
+            return rnd.NextInt64(123456789,987654321);
+        }
+
+    }
+}

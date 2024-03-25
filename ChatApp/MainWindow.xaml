@@ -1,0 +1,84 @@
+﻿<Window x:Class="ChatApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Chat App" Height="600" Width="800" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        MouseDown="Window_MouseDown">
+
+    <Window.Resources>
+        <!-- Your existing styles... -->
+        <Style x:Key="OvalButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#231942" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="#fe7f2d" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Height" Value="25" />
+            <Setter Property="Width" Value="80" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+
+        <!-- Rectangle with light blue background and opacity -->
+        <Rectangle Fill="#231942" Opacity="0.4" />
+
+        <Grid>
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="530" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Orientation="Horizontal" Margin="0,10,15,0" Width="65" >
+                <Button x:Name="btnMinimize" Width="15" Height="15" Margin="0,0,10,0" Background="#00CA4E" Click="btnMinimize_Click"/>
+                <Button x:Name="btnMaximize" Width="15" Height="15"  Margin="0,0,10,0" Background="#FFBD44" Click="btnMaximize_Click"/>
+                <Button x:Name="btnClose" Width="15" Height="15"  Background="#FF605C" Click="btnClose_Click"/>
+            </StackPanel>
+            <!-- Alice Text ve Green Circle -->
+            <Grid x:Name="myGrid" Grid.Row="0" Margin="7,5,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="partnerName" Text="Alice" VerticalAlignment="Top" HorizontalAlignment="Left" Foreground="Black" FontWeight="Bold" FontSize="15"/>
+
+                <!-- İçi Dolu Yeşil Küre -->
+                <Ellipse x:Name="onileneOrOffline" Width="12" Height="12" Fill="Red" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10,4,0,0" Grid.Column="1"/>
+            </Grid>
+
+            <!-- Sohbet Mesajları -->
+            <ListBox Name="lstMessages" Grid.Row="1" Margin="15,10,15,10">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Sender}" FontWeight="Bold" />
+                            <TextBlock Text="{Binding Content}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Mesaj Gönderme Bölümü -->
+            <Grid Grid.Row="2" Margin="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBox Name="txtMessage" VerticalAlignment="Center" Margin="6,0,89,0" TextChanged="txtMessage_TextChanged" Height="25"/>
+
+                <Button x:Name="SendButton" Content="Send" Style="{StaticResource OvalButtonStyle}" VerticalAlignment="Center" Click="btnSend_Click" KeyDown="txtMessage_KeyDown" Margin="696,0,4,0" />
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

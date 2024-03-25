@@ -1,0 +1,116 @@
+using System.Diagnostics;
+using System.Net.Sockets;
+using System.Net;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using System.Collections.ObjectModel;
+
+namespace ChatApp
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+
+        private string parnerIP = "192.168.1.92";
+        public ObservableCollection<Message> Messages { get; set; }
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            Messages = new ObservableCollection<Message>();
+            lstMessages.ItemsSource = Messages;
+            Task.Run(() => ListenForMessages());
+        }
+
+        //TODO Gönderilen mesajın sol altında karşıya ulaşıp ulaşmadığını belirten ufak bir yazı olacak
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        public void btnSend_Click(object sender, RoutedEventArgs e)
+        {
+            string messageContent = txtMessage.Text;
+            if (!string.IsNullOrEmpty(messageContent))
+            {
+                //burda yeni bir thread ile mesajı gönderecek
+
+                Task.Run(() => SendMessage(messageContent));
+
+                Messages.Add(new Message { Sender = "You", Content = messageContent });
+                txtMessage.Clear();
+            }
+        }
+
+        public class Message
+        {
+            public string Sender { get; set; }
+            public string Content { get; set; }
+        }
+
+        /// <summary>
+        /// mesaj gönderir
+        /// </summary>
+        /// <param name="message"></param>
+        private void SendMessage(string message)
+        {
+            try
+            {
+                TcpClient client = new TcpClient(parnerIP, 8080);
+                NetworkStream stream = client.GetStream();
+
+                // Veri gönderme
+                byte[] data = Encoding.ASCII.GetBytes(message);
+                stream.Write(data, 0, data.Length);
+
+                // İstemciyi kapat
+                client.Close();
+            }
+            catch (Exception ex)
+            {
+                // Hata yönetimi burada yapılabilir
+                MessageBox.Show($"Hata oluştu: {ex.Message}", "Hata", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task ListenForMessages()
+        {
+            while (true)
+            {
+                try
+                {
+                    TcpListener server = new TcpListener(IPAddress.Any, 8080);
+                    server.Start();
+
+                    TcpClient client = await server.AcceptTcpClientAsync();
+                    NetworkStream stream = client.GetStream();
+
+                    byte[] data = new byte[256];
+                    int bytesRead = await stream.ReadAsync(data, 0, data.Length);
+                    string message = Encoding.ASCII.GetString(data, 0, bytesRead);
+                    Debug.WriteLine($"Gelen Veri: {message}");
+
+                    server.Stop();
+
+                    // Gelen mesajı UI thread'ine eklemek için Dispatcher'ı kullan
+                    Dispatcher.Invoke(() => Messages.Add(new Message { Sender = "Partner", Content = message }));
+                }
+                catch (Exception ec)
+                {
+                    Debug.WriteLine($"Hata oluştu: {ec.Message}");
+                }
+            }
+        }
+
+    }
+}
